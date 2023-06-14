@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  db:
+    build: .
+    healthcheck:
+      test: pg_isready -U ${POSTGRES_USER-postgres} -h localhost
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      [
+        "postgres",
+        "-c",
+        "log_statement=all",
+        "-c",
+        "log_destination=stderr",
+        "-c",
+        "shared_preload_libraries=pg_cron",
+        "-c",
+        "cron.database_name=postgres",
+        "-c",
+        "domping.slack_channel_url=${SLACK_CHANNEL_URL-http://request_hole:8080}",
+      ]
+    ports:
+      - ${POSTGRES_PORT-5432}:5432
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-postgres}
+      POSTGRES_USER: ${POSTGRES_USER-postgres}
+    volumes:
+      - ./migrate.sql:/docker-entrypoint-initdb.d/0-migrate.sql
+      - db-data:/var/lib/postgresql/data
+
+  request_hole:
+    image: madflow/request-hole
+    command:
+      ["http", "--web", "--address", "0.0.0.0", "--web_address", "0.0.0.0"]
+    depends_on:
+      - db
+    ports:
+      - 8081:8081
+
+volumes:
+  db-data:
